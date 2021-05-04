@@ -7,7 +7,7 @@
 #define RAISIM_RAISIMSERVER_HPP
 #include <chrono>
 
-#ifdef __linux__
+#if defined __linux__ || __APPLE__
 #include <arpa/inet.h>
 #include <fcntl.h>
 #include <netinet/in.h>
@@ -17,7 +17,7 @@
 #include <sys/socket.h>
 #include <sys/wait.h>
 #include <unistd.h>
-#define RAISIM_SERVER_SOCKET_OPTION SO_REUSEADDR | SO_REUSEPORT
+#include <errno.h>
 #elif WIN32
 #undef UNICODE
 #define WIN32_LEAN_AND_MEAN
@@ -25,6 +25,12 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #define RAISIM_SERVER_SOCKET_OPTION SO_REUSEADDR | SO_BROADCAST
+#endif
+
+#if __linux__
+#define RAISIM_SERVER_SOCKET_OPTION SO_REUSEADDR | SO_REUSEPORT
+#elif __APPLE__
+#define RAISIM_SERVER_SOCKET_OPTION SO_REUSEPORT
 #endif
 
 #include <tinyxml_rai/tinyxml_rai.h>
@@ -41,6 +47,56 @@
 #include "raisim/object/ArticulatedSystem/JointAndBodies.hpp"
 
 namespace raisim {
+
+struct PolyLine {
+  std::string name;
+  Vec<4> color = {1, 1, 1, 1};
+  std::vector<Vec<3>> points;
+  double width = 0.01;
+
+  /**
+   * @param[in] r red value of the color (max=1).
+   * @param[in] g green value of the color (max=1).
+   * @param[in] b blue value of the color (max=1).
+   * @param[in] a alpha value of the color (max=1).
+   * set the color of the polyline. */
+  void setColor(double r, double g, double b, double a) { color = {r, g, b, a}; }
+
+  /**
+   * @param[in] point new polyline point.
+   * append a new point to the polyline. */
+  void addPoint(const Eigen::Vector3d &point) { points.push_back(point); }
+
+  /**
+   * clear all polyline points. */
+  void clearPoints() { points.clear(); }
+};
+
+struct ArticulatedSystemVisual {
+  ArticulatedSystemVisual(const std::string &urdfFile) : obj(new ArticulatedSystem(urdfFile)) {
+    color.setZero();
+  }
+
+  /**
+   * @param[in] r red value (max 1)
+   * @param[in] g green value (max 1)
+   * @param[in] b blue value (max 1)
+   * @param[in] a alpha value (max 1)
+   * set color. if the alpha value is 0, it uses the original color defined in the mesh file */
+  void setColor(double r, double g, double b, double a) {
+    color = {r,g,b,a};
+  }
+
+  /**
+   * @param[in] gc the generalized coordinate (max 1)
+   * set the configuration of the visualized articulated system */
+  void setGeneralizedCoordinate(const Eigen::VectorXd& gc) {
+    obj->setGeneralizedCoordinate(gc);
+  }
+
+  raisim::Vec<4> color;
+  std::unique_ptr<ArticulatedSystem> obj;
+};
 
 struct Visuals {
   enum VisualType : int {
@@ -70,15 +126,72 @@ struct Visuals {
    */
   Vec<3> size = {0, 0, 0};
 
+  /**
+   * @param[in] radius the raidus of the sphere.
+   * set size of the sphere. */
   void setSphereSize(double radius) { size[0] = radius; }
-  void setBoxSize(double x, double y, double z) { size = {x,y,z}; }
+
+  /**
+   * @param[in] x length.
+   * @param[in] y width.
+   * @param[in] z height.
+   * set size of the box. */
+  void setBoxSize(double x, double y, double z) { size = {x, y, z}; }
+
+  /**
+   * @param[in] radius the raidus of the cylinder.
+   * @param[in] height the height of the cylinder.
+   * set size of the cylinder. */
   void setCylinderSize(double radius, double height) { size = {radius, height, 1.}; }
+
+  /**
+   * @param[in] radius the raidus of the capsule.
+   * @param[in] height the height of the capsule.
+   * set size of the capsule. */
   void setCapsuleSize(double radius, double height) { size = {radius, height, 1.}; }
 
+  /**
+   * @param[in] x x coordinate of the visual object.
+   * @param[in] y y coordinate of the visual object.
+   * @param[in] z z coordinate of the visual object.
+   * set the position of the visual object. */
   void setPosition(double x, double y, double z) { position = {x, y, z}; }
+
+  /**
+   * @param[in] w angle part of the quaternion.
+   * @param[in] x scaled x coordinate of the rotation axis.
+   * @param[in] y scaled y coordinate of the rotation axis.
+   * @param[in] z scaled z coordinate of the rotation axis.
+   * set the orientation of the visual object. */
   void setOrientation(double w, double x, double y, double z) { quaternion = {w, x, y, z}; }
-  Vec<3> &getPosition() { return position; }
-  Vec<4> &getOrientation() { return quaternion; }
+
+  /**
+   * @param[in] pos position of the visual object in Eigen::Vector3d.
+   * set the position of the visual object. */
+  void setPosition(const Eigen::Vector3d &pos) { position = pos; }
+
+  /**
+   * @param[in] ori quaternion of the visual object in Eigen::Vector4d.
+   * set the orientation of the visual object. */
+  void setOrientation(const Eigen::Vector4d &ori) { quaternion = ori; }
+
+  /**
+   * @param[in] r red value of the color (max=1).
+   * @param[in] g green value of the color (max=1).
+   * @param[in] b blue value of the color (max=1).
+   * @param[in] a alpha value of the color (max=1).
+   * set the color of the visual object. */
+  void setColor(double r, double g, double b, double a) { color = {r, g, b, a}; }
+
+  /**
+   * @return the position of the visual object.
+   * get the position of the visual object. */
+  Eigen::Vector3d getPosition() { return position.e(); }
+
+  /**
+   * @return the orientation of the visual object.
+   * get the orientation of the visual object. */
+  Eigen::Vector4d getOrientation() { return quaternion.e(); }
 
  private:
   Vec<3> position = {0, 0, 0};
@@ -132,39 +245,51 @@ class RaisimServer final {
     STATUS_TERMINATING = 2
   };
 
+  /**
+   * @param[in] world the world to visualize.
+   * create a raisimSever for a world. */
   explicit RaisimServer(World *world) : world_(world) {
     receive_buffer.resize(RECEIVE_BUFFER_SIZE);
     send_buffer.resize(SEND_BUFFER_SIZE);
     memset(tempBuffer, 0, MAXIMUM_PACKET_SIZE * sizeof(char));
   }
 
-#if __linux__
+  ~RaisimServer() {
+    for (auto &vis : _visualObjects)
+      delete vis.second;
+
+    for (auto &vis : _polyLines)
+      delete vis.second;
+
+    for (auto &vis : _visualArticulatedSystem)
+      delete vis.second;
+  }
+
+ private:
+#if __linux__ || __APPLE__
   inline void loop() {
     int opt = 1;
     int addrlen = sizeof(address);
 
     // Creating socket file descriptor
-    RSFATAL_IF((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0, "socket failed")
+    RSFATAL_IF((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0, "socket error: " << strerror(errno))
     RSFATAL_IF(setsockopt(server_fd, SOL_SOCKET, RAISIM_SERVER_SOCKET_OPTION,
-                          (char *)&opt, sizeof(opt)), "setsockopt")
+                          (char *) &opt, sizeof(opt)), "setsockopt error: "<< strerror(errno))
 
     address.sin_family = AF_INET;
     address.sin_addr.s_addr = INADDR_ANY;
     address.sin_port = htons(raisimPort_);
 
     // Forcefully attaching socket to the port 8080
-    RSFATAL_IF(bind(server_fd, (struct sockaddr *)&address, sizeof(address)) < 0, "bind failed")
-    RSFATAL_IF(listen(server_fd, 3) < 0, "listen failed")
+    RSFATAL_IF(bind(server_fd, (struct sockaddr *) &address, sizeof(address)) < 0, "bind error: " << strerror(errno))
+    RSFATAL_IF(listen(server_fd, 3) < 0, "listen error: " << strerror(errno))
 
     while (!terminateRequested_) {
       if (waitForReadEvent(2.0)) {
-        RSFATAL_IF((client_ = accept(server_fd, (struct sockaddr *)&address,
-                                     (socklen_t *)&addrlen)) < 0, "accept failed")
+        RSFATAL_IF((client_ = accept(server_fd, (struct sockaddr *) &address,
+                                     (socklen_t *) &addrlen)) < 0, "accept failed")
         connected_ = true;
       }
-
-      std::chrono::steady_clock::time_point lastChecked, current;
-      lastChecked = std::chrono::steady_clock::now();
 
       while (connected_) {
         if (terminateRequested_) {
@@ -172,18 +297,10 @@ class RaisimServer final {
           connected_ = false;
         }
 
-        if (processRequests()) {
-          lastChecked = std::chrono::steady_clock::now();
-        } else {
-          current = std::chrono::steady_clock::now();
-          std::cout<<"disconnected for "<<std::chrono::duration_cast<std::chrono::seconds>(current - lastChecked).count()<<std::endl;
+        if (!processRequests())
+          connected_ = false;
 
-          if (std::chrono::duration_cast<std::chrono::seconds>(current - lastChecked).count() > 1.0) {
-            connected_ = false;
-          }
-        }
-
-        if(state_==STATUS_HIBERNATING)
+        if (state_ == STATUS_HIBERNATING)
           usleep(100000);
       }
     }
@@ -267,17 +384,8 @@ class RaisimServer final {
           connected_ = false;
         }
 
-        if (processRequests()) {
-          lastChecked = std::chrono::steady_clock::now();
-        } else {
-          current = std::chrono::steady_clock::now();
-
-          if (std::chrono::duration_cast<std::chrono::seconds>(current -
-                                                               lastChecked)
-                  .count() > 1.0) {
-            connected_ = false;
-          }
-        }
+        if (!processRequests())
+          connected_ = false;
 
         if (state_ == STATUS_HIBERNATING)
           std::this_thread::sleep_for(std::chrono::microseconds(100000));
@@ -289,21 +397,21 @@ class RaisimServer final {
   }
 #endif
 
-  template <typename T>
+  template<typename T>
   static inline char *set(char *data, T *val) {
     memcpy(data, val, sizeof(T));
     data += sizeof(T);
     return data;
   }
 
-  template <typename T>
+  template<typename T>
   static inline char *setN(char *data, T *val, int64_t N) {
     memcpy(data, val, sizeof(T) * N);
     data += sizeof(T) * N;
     return data;
   }
 
-  template <typename T>
+  template<typename T>
   static inline char *set(char *data, T val) {
     T temp = val;
     memcpy(data, &temp, sizeof(T));
@@ -311,14 +419,14 @@ class RaisimServer final {
     return data;
   }
 
-  template <typename T>
+  template<typename T>
   static inline char *get(char *data, T *val) {
     memcpy(val, data, sizeof(T));
     data += sizeof(T);
     return data;
   }
 
-  template <typename T>
+  template<typename T>
   static inline char *getN(char *data, T *val, uint64_t N) {
     memcpy(val, data, sizeof(T) * N);
     data += sizeof(T) * N;
@@ -334,69 +442,125 @@ class RaisimServer final {
   }
 
   static inline char *setString(char *data, const std::string &val) {
-    data = set(data, (uint64_t)(val.size()));
+    data = set(data, (uint64_t) (val.size()));
     memcpy(data, val.data(), sizeof(char) * val.size());
     data += sizeof(char) * val.size();
     return data;
   }
 
-  template <typename T>
+  template<typename T>
   static inline char *setStdVector(char *data, const std::vector<T> &str) {
     data = set(data, int64_t(str.size()));
     data = setN(data, str.data(), uint64_t(str.size()));
     return data;
   }
 
-  template <typename T>
+  template<typename T>
   static inline char *getStdVector(char *data, std::vector<T> &str) {
     uint64_t size;
     data = get(data, &size);
     str.resize(size);
-    data = getN(data, str.data(), (uint64_t)(str.size()));
+    data = getN(data, str.data(), (uint64_t) (str.size()));
     return data;
   }
 
+ public:
+  /**
+   * @param[in] port port number to stream
+   * start spinning. */
   inline void launchServer(int port = 8080) {
     raisimPort_ = port;
     serverThread_ = std::thread(&raisim::RaisimServer::loop, this);
   }
 
+  /**
+   * set the world mutex.
+   * This will prevent visualization thread reading from the world (otherwise, there can be a segfault).
+   * Integrate the world. */
   inline void integrateWorldThreadSafe() {
-    // std::lock_guard<std::mutex> guard(serverMutex_);
+    std::lock_guard<std::mutex> guard(serverMutex_);
     world_->integrate();
     updateReady_ = true;
   }
 
-  inline void hibernate() { std::lock_guard<std::mutex> guard(serverMutex_); state_ = STATUS_HIBERNATING; }
+  /**
+   * hibernate the server. This will stop the server spinning. */
+  inline void hibernate() {
+    std::lock_guard<std::mutex> guard(serverMutex_);
+    state_ = STATUS_HIBERNATING;
+  }
 
-  inline void wakeup() { std::lock_guard<std::mutex> guard(serverMutex_); state_ = STATUS_RENDERING; }
+  /**
+   * wake up the server. Restart the server from hibernation */
+  inline void wakeup() {
+    std::lock_guard<std::mutex> guard(serverMutex_);
+    state_ = STATUS_RENDERING;
+  }
 
+  /**
+   * stop spinning the server and disconnect the client */
   inline void killServer() {
     terminateRequested_ = true;
-    if(serverThread_.joinable())
+    if (serverThread_.joinable())
       serverThread_.join();
     terminateRequested_ = false;
   }
 
+  /**
+   * currently not used */
   inline void informClientForUpdate() { updateReady_ = true; }
 
+  /**
+   * lock the visualization mutex so that the server cannot read from the world */
   inline void lockVisualizationServerMutex() { serverMutex_.lock(); }
 
+  /**
+   * unlock the visualization mutex so that the server can read from the world */
   inline void unlockVisualizationServerMutex() { serverMutex_.unlock(); }
 
+  // currently not used
   inline bool isPauseRequested() { return pauseRequested_; }
-
   inline bool isResumeRuested() { return resumeRequested_; }
 
   inline bool isTerminateRequested() { return terminateRequested_; }
 
-  inline Visuals *addVisualSphere(const std::string name, double radius,
+  /**
+   * @param[in] name the name of the visual articulated system object
+   * @param[in] urdfFile the path to the urdf file
+   * @param[in] colorR the red value of the color (max=1)
+   * @param[in] colorG the green value of the color (max=1)
+   * @param[in] colorB the blue value of the color (max=1)
+   * @param[in] colorA the alpha value of the color (max=1)
+   * @return the articulated system visual pointer
+   * add a sphere without physics */
+  inline ArticulatedSystemVisual *addVisualArticulatedSystem(const std::string &name,
+                                                             const std::string &urdfFile,
+                                                             double colorR = 0, double colorG = 0,
+                                                             double colorB = 0, double colorA = 0) {
+    _visualArticulatedSystem[name] = new ArticulatedSystemVisual(urdfFile);
+    _visualArticulatedSystem[name]->color = raisim::Vec<4>{colorR, colorG, colorB, colorA};
+    updateVisualConfig();
+    return _visualArticulatedSystem[name];
+  }
+
+  /**
+   * @param[in] name the name of the visual object
+   * @param[in] radius radius of the sphere
+   * @param[in] colorR the red value of the color (max=1)
+   * @param[in] colorG the green value of the color (max=1)
+   * @param[in] colorB the blue value of the color (max=1)
+   * @param[in] colorA the alpha value of the color (max=1)
+   * @param[in] material visualization material
+   * @param[in] glow to glow or not
+   * @param[in] shadow to cast shadow or not
+   * @return the sphere pointer
+   * add a sphere without physics */
+  inline Visuals *addVisualSphere(const std::string &name, double radius,
                                   double colorR = 1, double colorG = 1,
                                   double colorB = 1, double colorA = 1,
                                   const std::string &material = "",
-                                  bool glow = true, bool shadow = false) {
-    if (_visualObjects.find(name) != _visualObjects.end())
-    RSFATAL("Duplicated visual object name: " + name)
+                                  bool glow = false, bool shadow = false) {
+    if (_visualObjects.find(name) != _visualObjects.end()) RSFATAL("Duplicated visual object name: " + name)
     updateVisualConfig();
     _visualObjects[name] = new Visuals();
     _visualObjects[name]->type = Visuals::VisualType::VisualSphere;
@@ -408,14 +572,27 @@ class RaisimServer final {
     return _visualObjects[name];
   }
 
-  inline Visuals *addVisualBox(const std::string name, double xLength,
+  /**
+   * @param[in] name the name of the visual object
+   * @param[in] xLength length of the box
+   * @param[in] yLength width of the box
+   * @param[in] zLength height of the box
+   * @param[in] colorR the red value of the color (max=1)
+   * @param[in] colorG the green value of the color (max=1)
+   * @param[in] colorB the blue value of the color (max=1)
+   * @param[in] colorA the alpha value of the color (max=1)
+   * @param[in] material visualization material
+   * @param[in] glow to glow or not
+   * @param[in] shadow to cast shadow or not
+   * @return the box pointer
+   * add a box without physics */
+  inline Visuals *addVisualBox(const std::string &name, double xLength,
                                double yLength, double zLength,
                                double colorR = 1, double colorG = 1,
                                double colorB = 1, double colorA = 1,
                                const std::string &material = "",
-                               bool glow = true, bool shadow = false) {
-    if (_visualObjects.find(name) != _visualObjects.end())
-    RSFATAL("Duplicated visual object name: " + name)
+                               bool glow = false, bool shadow = false) {
+    if (_visualObjects.find(name) != _visualObjects.end()) RSFATAL("Duplicated visual object name: " + name)
     updateVisualConfig();
     _visualObjects[name] = new Visuals();;
     _visualObjects[name]->type = Visuals::VisualType::VisualBox;
@@ -429,16 +606,28 @@ class RaisimServer final {
     return _visualObjects[name];
   }
 
-  inline Visuals *addVisualCylinder(const std::string name, double radius,
+  /**
+   * @param[in] name the name of the visual object
+   * @param[in] radius radius of the cylinder
+   * @param[in] length length of the cylinder
+   * @param[in] colorR the red value of the color (max=1)
+   * @param[in] colorG the green value of the color (max=1)
+   * @param[in] colorB the blue value of the color (max=1)
+   * @param[in] colorA the alpha value of the color (max=1)
+   * @param[in] material visualization material
+   * @param[in] glow to glow or not
+   * @param[in] shadow to cast shadow or not
+   * @return the cylinder pointer
+   * add a cylinder without physics */
+  inline Visuals *addVisualCylinder(const std::string &name, double radius,
                                     double length, double colorR = 1,
                                     double colorG = 1, double colorB = 1,
                                     double colorA = 1,
                                     const std::string &material = "",
-                                    bool glow = true, bool shadow = false) {
-    if (_visualObjects.find(name) != _visualObjects.end())
-    RSFATAL("Duplicated visual object name: " + name)
+                                    bool glow = false, bool shadow = false) {
+    if (_visualObjects.find(name) != _visualObjects.end()) RSFATAL("Duplicated visual object name: " + name)
     updateVisualConfig();
-    _visualObjects[name] = new Visuals();;
+    _visualObjects[name] = new Visuals();
     _visualObjects[name]->type = Visuals::VisualType::VisualCylinder;
     _visualObjects[name]->name = name;
     _visualObjects[name]->size[0] = radius;
@@ -449,16 +638,28 @@ class RaisimServer final {
     return _visualObjects[name];
   }
 
-  inline Visuals *addVisualCapsule(const std::string name, double radius,
+  /**
+   * @param[in] name the name of the visual object
+   * @param[in] radius radius of the capsule
+   * @param[in] length length of the capsule
+   * @param[in] colorR the red value of the color (max=1)
+   * @param[in] colorG the green value of the color (max=1)
+   * @param[in] colorB the blue value of the color (max=1)
+   * @param[in] colorA the alpha value of the color (max=1)
+   * @param[in] material visualization material
+   * @param[in] glow to glow or not
+   * @param[in] shadow to cast shadow or not
+   * @return the capsule pointer
+   * add a capsule without physics */
+  inline Visuals *addVisualCapsule(const std::string &name, double radius,
                                    double length, double colorR = 1,
                                    double colorG = 1, double colorB = 1,
                                    double colorA = 1,
                                    const std::string &material = "",
-                                   bool glow = true, bool shadow = false) {
-    if (_visualObjects.find(name) != _visualObjects.end())
-    RSFATAL("Duplicated visual object name: " + name)
+                                   bool glow = false, bool shadow = false) {
+    if (_visualObjects.find(name) != _visualObjects.end()) RSFATAL("Duplicated visual object name: " + name)
     updateVisualConfig();
-    _visualObjects[name] = new Visuals();;
+    _visualObjects[name] = new Visuals();
     _visualObjects[name]->type = Visuals::VisualType::VisualCapsule;
     _visualObjects[name]->name = name;
     _visualObjects[name]->size[0] = radius;
@@ -469,28 +670,79 @@ class RaisimServer final {
     return _visualObjects[name];
   }
 
-  inline Visuals *getVisualObject(std::string name) {
-    if (_visualObjects.find(name) == _visualObjects.end())
-    RSFATAL("Visual object with name \"" + name + "\" doesn't exist.")
+  /**
+   * @param[in] name the name of the polyline
+   * @return the polyline pointer
+   * add a polyline without physics */
+  inline PolyLine *addVisualPolyLine(const std::string &name) {
+    RSFATAL_IF(_polyLines.find(name) != _polyLines.end(), "Duplicated polyline object name: " + name)
+    _polyLines[name] = new PolyLine();
+    _polyLines[name]->name = name;
+    return _polyLines[name];
+  }
+
+  /**
+   * @param[in] name the name of the polyline
+   * get visualized polyline */
+  inline PolyLine *getVisualPolyLine(const std::string &name) {
+    RSFATAL_IF(_polyLines.find(name) == _polyLines.end(), name + " doesn't exist")
+    return _polyLines[name];
+  }
+
+  /**
+   * @param[in] name the name of the visual articulated system
+   * get visualized articulated system */
+  inline ArticulatedSystemVisual *getVisualArticulatedSystem(const std::string &name) {
+    RSFATAL_IF(_visualArticulatedSystem.find(name) == _visualArticulatedSystem.end(), name + " doesn't exist")
+    return _visualArticulatedSystem[name];
+  }
+
+  /**
+   * @param[in] name the name of the polyline to be removed
+   * remove an existing polyline */
+  inline void removeVisualPolyLine(const std::string &name) {
+    if (_polyLines.find(name) == _polyLines.end()) RSFATAL("Visual polyline with name \"" + name + "\" doesn't exist.")
+    updateVisualConfig();
+    delete _polyLines[name];
+    _polyLines.erase(name);
+  }
+
+  /**
+   * @param[in] name the name of the visual object to be retrieved
+   * @return visual object with a specified name
+   * retrieve a visual object with a specified name */
+  inline Visuals *getVisualObject(const std::string &name) {
+    if (_visualObjects.find(name) == _visualObjects.end()) RSFATAL(
+        "Visual object with name \"" + name + "\" doesn't exist.")
     return _visualObjects[name];
   }
 
-  inline void removeVisualObject(std::string name) {
-    if (_visualObjects.find(name) == _visualObjects.end())
-    RSFATAL("Visual object with name \"" + name + "\" doesn't exist.")
+  /**
+   * @param[in] name the name of the visual object to be removed
+   * remove an existing visual object */
+  inline void removeVisualObject(const std::string &name) {
+    if (_visualObjects.find(name) == _visualObjects.end()) RSFATAL(
+        "Visual object with name \"" + name + "\" doesn't exist.")
     updateVisualConfig();
+    delete _visualObjects[name];
     _visualObjects.erase(name);
   }
 
-  inline void startRecordingVideo(const std::string& videoName) {
+  /**
+   * @param[in] videoName name of the video file to be saved. The videoName must be a valid file name (e.g., no spaces, ending in .mp4)
+   * start recording video. RaisimUnity only supports video recording in linux */
+  inline void startRecordingVideo(const std::string &videoName) {
     serverRequest_.push_back(ServerRequestType::START_RECORD_VIDEO);
     videoName_ = videoName;
   }
 
+  /**
+   * stop recording video */
   inline void stopRecordingVideo() {
     serverRequest_.push_back(ServerRequestType::STOP_RECORD_VIDEO);
   }
 
+ private:
   inline bool waitForReadEvent(int timeout) {
     fd_set sdset;
     struct timeval tv;
@@ -502,97 +754,117 @@ class RaisimServer final {
     return select(server_fd + 1, &sdset, NULL, NULL, &tv) > 0;
   }
 
-  void setCameraPositionAndLookAt (const Eigen::Vector3d& pos, const Eigen::Vector3d& lookAt) {
+ public:
+  /**
+   * @param[in] pos the position of the camera
+   * @param[in] lookAt the forward direction of the camera (the up direction is always z-axis)
+   * set the camera to a specified position */
+  void setCameraPositionAndLookAt(const Eigen::Vector3d &pos, const Eigen::Vector3d &lookAt) {
     serverRequest_.push_back(ServerRequestType::STOP_RECORD_VIDEO);
-    position_ = pos; lookAt_ = lookAt;
+    position_ = pos;
+    lookAt_ = lookAt;
   }
 
-  void focusOn (raisim::Object* obj) {
-    RSFATAL_IF(obj==nullptr, "object does not exist.")
+  /**
+   * @param[in] obj the object to look at
+   * move the camera to look at the specified object */
+  void focusOn(raisim::Object *obj) {
+    RSFATAL_IF(obj == nullptr, "object does not exist.")
     serverRequest_.push_back(ServerRequestType::FOCUS_ON_SPECIFIC_OBJECT);
     focusedObjectName_ = obj->getName();
   }
 
-  bool isConnected () const { return connected_; }
+  /**
+   * @return if a client is connected to a server
+   * check if a client is connected to a server */
+  bool isConnected() const { return connected_; }
 
  private:
   inline bool processRequests() {
     data_ = &send_buffer[0];
     ClientMessageType type;
+    int recv_size = recv(client_, &receive_buffer[0], MAXIMUM_PACKET_SIZE, 0);
 
-    if (recv(client_, &receive_buffer[0], MAXIMUM_PACKET_SIZE, 0) == 0) {
-      connected_ = false;
+    if (recv_size <= 0)
       return false;
-    }
-    get(&receive_buffer[0], &type);
 
-    data_ = set(data_, state_);
+    int clientVersion;
+    auto data = get(&receive_buffer[0], &clientVersion);
+    data_ = set(data_, version_);
 
-    // set server request
-    data_ = set(data_, (uint64_t)serverRequest_.size());
-    for(const auto& sr : serverRequest_) {
-      data_ = set(data_, (int)sr);
+    if (clientVersion == version_) {
+      data = get(data, &type);
+      data = get(data, &objectId_);
 
-      switch (sr) {
-        case ServerRequestType::NO_REQUEST:
-        case ServerRequestType::STOP_RECORD_VIDEO:
-          break;
+      data_ = set(data_, state_);
 
-        case ServerRequestType::START_RECORD_VIDEO:
-          data_ = setString(data_, videoName_);
-          break;
+      // set server request
+      data_ = set(data_, (uint64_t) serverRequest_.size());
+      for (const auto &sr : serverRequest_) {
+        data_ = set(data_, (int) sr);
 
-        case ServerRequestType::SET_CAMERA_TO:
-          data_ = setN(data_, position_.data(), 3);
-          data_ = setN(data_, lookAt_.data(), 3);
-          break;
+        switch (sr) {
+          case ServerRequestType::NO_REQUEST:
+          case ServerRequestType::STOP_RECORD_VIDEO:
+            break;
 
-        case ServerRequestType::FOCUS_ON_SPECIFIC_OBJECT:
-          data_ = setString(data_, focusedObjectName_);
-          break;
+          case ServerRequestType::START_RECORD_VIDEO:
+            data_ = setString(data_, videoName_);
+            break;
+
+          case ServerRequestType::SET_CAMERA_TO:
+            data_ = setN(data_, position_.data(), 3);
+            data_ = setN(data_, lookAt_.data(), 3);
+            break;
+
+          case ServerRequestType::FOCUS_ON_SPECIFIC_OBJECT:
+            data_ = setString(data_, focusedObjectName_);
+            break;
+        }
       }
-    }
 
-    serverRequest_.clear();
+      serverRequest_.clear();
 
-    lockVisualizationServerMutex();
+      lockVisualizationServerMutex();
 
-    if(state_ != Status::STATUS_HIBERNATING) {
-      switch (type) {
-        case REQUEST_OBJECT_POSITION:
-          serializeWorld();
-          break;
+      if (state_ != Status::STATUS_HIBERNATING) {
+        switch (type) {
+          case REQUEST_OBJECT_POSITION:
+            serializeWorld();
+            break;
 
-        case REQUEST_INITIALIZATION:
-          serializeObjects();
-          break;
+          case REQUEST_INITIALIZATION:
+            serializeObjects();
+            serializeVisuals();
+            serializeWorld();
+            break;
 
-        case REQUEST_CHANGE_REALTIME_FACTOR:
-          changeRealTimeFactor();
-          break;
+          case REQUEST_CHANGE_REALTIME_FACTOR:
+            changeRealTimeFactor();
+            break;
 
-        case REQUEST_CONTACT_INFOS:
-          serializeContacts();
-          break;
+          case REQUEST_CONTACT_INFOS:
+            serializeContacts();
+            break;
 
-        case REQUEST_CONFIG_XML:
-          serializeToXML();
-          break;
+          case REQUEST_CONFIG_XML:
+            serializeToXML();
+            break;
 
-        case REQUEST_INITIALIZE_VISUALS:
-          serializeVisuals();
-          break;
+          case REQUEST_INITIALIZE_VISUALS:
+            break;
 
-        case REQUEST_VISUAL_POSITION:
-          break;
+          case REQUEST_VISUAL_POSITION:
+            break;
 
-        case REQUEST_SERVER_STATUS:
-          // Do nothing
-          return false;
-          break;
+          case REQUEST_SERVER_STATUS:
+            // Do nothing
+            return false;
+            break;
+        }
       }
+      unlockVisualizationServerMutex();
     }
-    unlockVisualizationServerMutex();
 
     bool eom = false;
     char *startPtr = &send_buffer[0];
@@ -616,27 +888,21 @@ class RaisimServer final {
   }
 
   inline void serializeWorld() {
-    if (!updateReady_) {
-      data_ = set(data_, ServerMessageType::NO_MESSAGE);
-      return;
-    }
-
     // std::lock_guard<std::mutex> guard(serverMutex_);
     auto &objList = world_->getObjList();
 
     // set message type
     data_ = set(data_, ServerMessageType::OBJECT_POSITION_UPDATE);
-
-    data_ = set(data_, (uint64_t)world_->getConfigurationNumber() + visualConfiguration_);
+    data_ = set(data_, (uint64_t) world_->getConfigurationNumber() + visualConfiguration_);
 
     // Data begins
-    data_ = set(data_, (uint64_t)(objList.size()));
+    data_ = set(data_, (uint64_t) (objList.size()));
 
     for (auto *ob : objList) {
       // set gc
       if (ob->getObjectType() == ObjectType::ARTICULATED_SYSTEM) {
-        data_ = set(data_, (uint64_t)(static_cast<ArticulatedSystem *>(ob)->getVisOb().size() +
-                    static_cast<ArticulatedSystem *>(ob)->getVisColOb().size()));
+        data_ = set(data_, (uint64_t) (static_cast<ArticulatedSystem *>(ob)->getVisOb().size() +
+            static_cast<ArticulatedSystem *>(ob)->getVisColOb().size()));
 
         for (uint64_t i = 0; i < 2; i++) {
           std::vector<VisObject> *visOb;
@@ -665,40 +931,34 @@ class RaisimServer final {
             data_ = set(data_, pos[2] + offsetInWorld[2]);
 
             raisim::rotMatToQuat(rot, quat);
-
-            data_ = set(data_, quat[0]);
-            data_ = set(data_, quat[1]);
-            data_ = set(data_, quat[2]);
-            data_ = set(data_, quat[3]);
+            data_ = setN(data_, quat.ptr(), 4);
           }
         }
       } else if (ob->getObjectType() == ObjectType::COMPOUND) {
-        auto* com = static_cast<Compound *>(ob);
-        data_ = set(data_, (uint64_t)(com->getObjList().size() * 2));
-        for (uint64_t i = 0; i < 2; i++) {
-          for (uint64_t k = 0; k < com->getObjList().size(); k++) {
-            std::string name = std::to_string(ob->getIndexInWorld()) + "/" + std::to_string(i) + "/" + std::to_string(k);
-            data_ = setString(data_, name);
-            Vec<3> pos, center; com->getPosition(center);
+        auto *com = static_cast<Compound *>(ob);
+        data_ = set(data_, (uint64_t) (com->getObjList().size()));
+        for (uint64_t k = 0; k < com->getObjList().size(); k++) {
+          std::string name = std::to_string(ob->getIndexInWorld()) + "/" + std::to_string(k);
+          data_ = setString(data_, name);
+          Vec<3> pos, center;
+          com->getPosition(center);
 
-            matvecmul(com->getRotationMatrix(), com->getObjList()[k].trans.pos, pos);
-            data_ = set(data_, pos[0] + center[0]);
-            data_ = set(data_, pos[1] + center[1]);
-            data_ = set(data_, pos[2] + center[2]);
+          matvecmul(com->getRotationMatrix(), com->getObjList()[k].trans.pos, pos);
+          data_ = set(data_, pos[0] + center[0]);
+          data_ = set(data_, pos[1] + center[1]);
+          data_ = set(data_, pos[2] + center[2]);
 
-            Mat<3,3> rot;
-            matmul(com->getRotationMatrix(), com->getObjList()[k].trans.rot, rot);
-            Vec<4> quat;
-            raisim::rotMatToQuat(rot, quat);
-            data_ = set(data_, quat[0]);
-            data_ = set(data_, quat[1]);
-            data_ = set(data_, quat[2]);
-            data_ = set(data_, quat[3]);
-          }
+          Mat<3, 3> rot;
+          matmul(com->getRotationMatrix(), com->getObjList()[k].trans.rot, rot);
+          Vec<4> quat;
+          raisim::rotMatToQuat(rot, quat);
+          data_ = set(data_, quat[0]);
+          data_ = set(data_, quat[1]);
+          data_ = set(data_, quat[2]);
+          data_ = set(data_, quat[3]);
         }
-
       } else {
-        data_ = set(data_, (uint64_t)(1));
+        data_ = set(data_, (uint64_t) (1));
         Vec<3> pos;
         Vec<4> quat;
         std::string name = std::to_string(ob->getIndexInWorld());
@@ -711,10 +971,12 @@ class RaisimServer final {
     }
 
     // visuals
-    data_ = set(data_, (uint64_t)(_visualObjects.size()));
+    data_ = set(data_, (uint64_t) (_visualObjects.size() + _visualArticulatedSystem.size()));
+    data_ = set(data_, (uint64_t) (_visualObjects.size()));
+    data_ = set(data_, (uint64_t) (_visualArticulatedSystem.size()));
 
     for (auto &kAndVo : _visualObjects) {
-      auto &vo = kAndVo.second;
+      auto *vo = kAndVo.second;
 
       Vec<3> pos = vo->getPosition();
       Vec<4> quat = vo->getOrientation();
@@ -727,17 +989,170 @@ class RaisimServer final {
       data_ = setN(data_, vo->size.ptr(), 3);
     }
 
-    // wires
-    data_ = set(data_, (uint64_t)(world_->getStiffWire().size() + world_->getCompliantWire().size()));
+    // ArticulatedSystemVisuals
+    for (auto &vis : _visualArticulatedSystem) {
+      auto *ob = vis.second->obj.get();
+      data_ = setN(data_, vis.second->color.ptr(), 4);
+      data_ = set(data_, (uint64_t) ob->getVisOb().size() + ob->getVisColOb().size());
 
-    for (auto& sw: world_->getStiffWire()) {
+      for (uint64_t i = 0; i < 2; i++) {
+        std::vector<VisObject> *visOb;
+        if (i == 0)
+          visOb = &(ob->getVisOb());
+        else
+          visOb = &(ob->getVisColOb());
+
+        for (uint64_t k = 0; k < (*visOb).size(); k++) {
+          auto &vob = (*visOb)[k];
+          std::string name = vis.first + "/" + std::to_string(i) + "/" + std::to_string(k);
+          data_ = setString(data_, name);
+
+          Vec<3> pos, offsetInWorld;
+          Vec<4> quat;
+          Mat<3, 3> bodyRotation, rot;
+
+          ob->getPosition(vob.localIdx, pos);
+          ob->getOrientation(vob.localIdx, bodyRotation);
+          matvecmul(bodyRotation, vob.offset, offsetInWorld);
+          matmul(bodyRotation, vob.rot, rot);
+          data_ = set(data_, pos[0] + offsetInWorld[0]);
+          data_ = set(data_, pos[1] + offsetInWorld[1]);
+          data_ = set(data_, pos[2] + offsetInWorld[2]);
+
+          raisim::rotMatToQuat(rot, quat);
+
+          data_ = set(data_, quat[0]);
+          data_ = set(data_, quat[1]);
+          data_ = set(data_, quat[2]);
+          data_ = set(data_, quat[3]);
+        }
+      }
+    }
+
+    // polylines
+    data_ = set(data_, (uint64_t) (_polyLines.size()));
+    for (auto &pl : _polyLines) {
+      auto *ptr = pl.second;
+      data_ = setString(data_, ptr->name);
+      data_ = setN(data_, ptr->color.ptr(), 4);
+      data_ = set(data_, ptr->width);
+      data_ = set(data_, (uint64_t) (ptr->points.size()));
+      for (size_t i = 0; i < ptr->points.size(); i++)
+        data_ = setN(data_, ptr->points[i].ptr(), 3);
+    }
+
+    // wires
+    data_ = set(data_, (uint64_t) (world_->getWires().size()));
+
+    for (auto &sw: world_->getWires()) {
       data_ = setN(data_, sw->getP1().ptr(), 3);
       data_ = setN(data_, sw->getP2().ptr(), 3);
     }
 
-    for (auto& cw: world_->getCompliantWire()) {
-      data_ = setN(data_, cw->getP1().ptr(), 3);
-      data_ = setN(data_, cw->getP2().ptr(), 3);
+    // External forces
+    size_t numExtForce = 0;
+    size_t numExtTorque = 0;
+
+    for (auto *ob: world_->getObjList()) {
+      numExtForce += ob->getExternalForce().size();
+      numExtTorque += ob->getExternalTorque().size();
+    }
+
+    data_ = set(data_, (uint64_t) numExtForce);
+    for (auto *ob: world_->getObjList()) {
+      for (size_t extNum = 0; extNum < ob->getExternalForce().size(); extNum++) {
+        data_ = setN(data_, ob->getExternalForcePosition()[extNum].ptr(), 3);
+        data_ = setN(data_, ob->getExternalForce()[extNum].ptr(), 3);
+      }
+    }
+
+    data_ = set(data_, (uint64_t) numExtTorque);
+    for (auto *ob: world_->getObjList()) {
+      for (size_t extNum = 0; extNum < ob->getExternalTorque().size(); extNum++) {
+        data_ = setN(data_, ob->getExternalTorquePosition()[extNum].ptr(), 3);
+        data_ = setN(data_, ob->getExternalTorque()[extNum].ptr(), 3);
+      }
+    }
+
+    if(objectId_ > -1) {
+      RSFATAL_IF(objectId_ >= world_->getObjList().size(), "The client is requesting non-existent object")
+      auto *obSelected = world_->getObjList()[objectId_];
+      if(obSelected->getObjectType() == ObjectType::ARTICULATED_SYSTEM) {
+        data_ = set(data_, int32_t(1));
+        auto* as = reinterpret_cast<ArticulatedSystem*>(obSelected);
+        data_ = set(data_, int32_t(as->getGeneralizedCoordinateDim()));
+        data_ = set(data_, int32_t(as->getDOF()));
+        data_ = set(data_, int32_t(as->getMovableJointNames().size()));
+        data_ = set(data_, int32_t(as->getFrames().size()));
+
+        for(int i=0; i<as->getGeneralizedCoordinateDim(); i++)
+          data_ = set(data_, float(as->getGeneralizedCoordinate()[i]));
+
+        for(int i=0; i<as->getDOF(); i++)
+          data_ = set(data_, float(as->getGeneralizedVelocity()[i]));
+
+        for(int i=0; i<as->getMovableJointNames().size(); i++) {
+          data_ = setString(data_, as->getMovableJointNames()[i]);
+          Vec<3> pos;
+          int j = i;
+          if(as->getJointType(0) == Joint::Type::FIXED)
+            j = i + 1;
+
+          data_ = set(data_, int(as->getJointType(j)));
+          as->getPosition(j, {0,0,0}, pos);
+          data_ = set(data_, float(pos[0]));
+          data_ = set(data_, float(pos[1]));
+          data_ = set(data_, float(pos[2]));
+          pos = as->getJointAxis(j);
+          data_ = set(data_, float(pos[0]));
+          data_ = set(data_, float(pos[1]));
+          data_ = set(data_, float(pos[2]));
+        }
+
+        Vec<3> pos;
+        Vec<4> quat;
+        Mat<3,3> rot;
+        for(int i=0; i<as->getFrames().size(); i++) {
+          data_ = setString(data_, as->getFrames()[i].name);
+          as->getFramePosition(i, pos);
+          as->getFrameOrientation(i, rot);
+          rotMatToQuat(rot, quat);
+          data_ = set(data_, float(pos[0]));
+          data_ = set(data_, float(pos[1]));
+          data_ = set(data_, float(pos[2]));
+
+          data_ = set(data_, float(quat[0]));
+          data_ = set(data_, float(quat[1]));
+          data_ = set(data_, float(quat[2]));
+          data_ = set(data_, float(quat[3]));
+        }
+      } else {
+        data_ = set(data_, int32_t(0));
+        auto* sb = reinterpret_cast<SingleBodyObject*>(obSelected);
+        auto pos = sb->getPosition();
+        auto quat = sb->getQuaternion();
+        data_ = set(data_, float(pos[0]));
+        data_ = set(data_, float(pos[1]));
+        data_ = set(data_, float(pos[2]));
+
+        data_ = set(data_, float(quat[0]));
+        data_ = set(data_, float(quat[1]));
+        data_ = set(data_, float(quat[2]));
+        data_ = set(data_, float(quat[3]));
+
+        auto linVel = sb->getLinearVelocity();
+        auto angVel = sb->getAngularVelocity();
+
+        data_ = set(data_, float(linVel[0]));
+        data_ = set(data_, float(linVel[1]));
+        data_ = set(data_, float(linVel[2]));
+
+        data_ = set(data_, float(angVel[0]));
+        data_ = set(data_, float(angVel[1]));
+        data_ = set(data_, float(angVel[2]));
+      }
+    } else {
+      data_ = set(data_, int32_t(-1));
     }
 
     updateReady_ = true;
@@ -752,14 +1167,14 @@ class RaisimServer final {
     data_ = set(data_, ServerMessageType::INITIALIZATION);
 
     // set configuration number.
-    data_ = set(data_, (uint64_t)world_->getConfigurationNumber() + visualConfiguration_);
+    data_ = set(data_, (uint64_t) world_->getConfigurationNumber() + visualConfiguration_);
 
     // Data begins
-    data_ = set(data_, (uint64_t)(objList.size()));
+    data_ = set(data_, (uint64_t) (objList.size()));
 
     for (auto *ob : objList) {
       // set name length
-      data_ = set(data_, (uint64_t)ob->getIndexInWorld());
+      data_ = set(data_, (uint64_t) ob->getIndexInWorld());
 
       // object type
       data_ = set(data_, ob->getObjectType());
@@ -769,15 +1184,18 @@ class RaisimServer final {
 
       switch (ob->getObjectType()) {
         case SPHERE:
+          data_ = setString(data_, dynamic_cast<SingleBodyObject *>(ob)->getAppearance());
           data_ = set(data_, float(static_cast<Sphere *>(ob)->getRadius()));
           break;
 
         case BOX:
+          data_ = setString(data_, dynamic_cast<SingleBodyObject *>(ob)->getAppearance());
           for (int i = 0; i < 3; i++)
             data_ = set(data_, float(static_cast<Box *>(ob)->getDim()[i]));
           break;
 
         case CYLINDER:
+          data_ = setString(data_, dynamic_cast<SingleBodyObject *>(ob)->getAppearance());
           data_ = set(data_, float(static_cast<Cylinder *>(ob)->getRadius()));
           data_ = set(data_, float(static_cast<Cylinder *>(ob)->getHeight()));
           break;
@@ -786,56 +1204,60 @@ class RaisimServer final {
           break;
 
         case CAPSULE:
+          data_ = setString(data_, dynamic_cast<SingleBodyObject *>(ob)->getAppearance());
           data_ = set(data_, float(static_cast<Capsule *>(ob)->getRadius()));
           data_ = set(data_, float(static_cast<Capsule *>(ob)->getHeight()));
           break;
 
         case HALFSPACE:
+          data_ = setString(data_, dynamic_cast<SingleBodyObject *>(ob)->getAppearance());
           data_ = set(data_, float(static_cast<Ground *>(ob)->getHeight()));
           break;
 
         case COMPOUND:
-          for (uint64_t i = 0; i < 2; i++) {
-            data_ = set(data_, (uint64_t)(static_cast<Compound*>(ob)->getObjList().size()));
+          data_ = setString(data_, dynamic_cast<SingleBodyObject *>(ob)->getAppearance());
+          data_ = set(data_, (uint64_t) (static_cast<Compound *>(ob)->getObjList().size()));
 
-            for (auto &vob : static_cast<Compound*>(ob)->getObjList()) {
-              data_ = set(data_, vob.objectType);
+          for (auto &vob : static_cast<Compound *>(ob)->getObjList()) {
+            data_ = set(data_, vob.objectType);
 
-              switch (vob.objectType) {
-                case BOX:
-                  data_ = set(data_, vob.objectParam[0]);
-                  data_ = set(data_, vob.objectParam[1]);
-                  data_ = set(data_, vob.objectParam[2]);
-                  break;
-                case CAPSULE:
-                case CYLINDER:
-                  data_ = set(data_, vob.objectParam[0]);
-                  data_ = set(data_, vob.objectParam[1]);
-                  break;
-                case SPHERE:
-                  data_ = set(data_, vob.objectParam[0]);
-                  break;
-              }
+            switch (vob.objectType) {
+              case BOX:
+                data_ = set(data_, vob.objectParam[0]);
+                data_ = set(data_, vob.objectParam[1]);
+                data_ = set(data_, vob.objectParam[2]);
+                break;
+              case CAPSULE:
+              case CYLINDER:
+                data_ = set(data_, vob.objectParam[0]);
+                data_ = set(data_, vob.objectParam[1]);
+                break;
+              case SPHERE:
+                data_ = set(data_, vob.objectParam[0]);
+                break;
             }
           }
+
           break;
 
         case MESH:
+          data_ = setString(data_, dynamic_cast<SingleBodyObject *>(ob)->getAppearance());
           data_ = setString(data_, static_cast<Mesh *>(ob)->getMeshFileName());
           data_ = set(data_, float(static_cast<Mesh *>(ob)->getScale()));
           break;
 
         case HEIGHTMAP:
           // misc data
+          data_ = setString(data_, dynamic_cast<SingleBodyObject *>(ob)->getAppearance());
           data_ = set(data_, float(static_cast<HeightMap *>(ob)->getCenterX()));
           data_ = set(data_, float(static_cast<HeightMap *>(ob)->getCenterY()));
           data_ = set(data_, float(static_cast<HeightMap *>(ob)->getXSize()));
           data_ = set(data_, float(static_cast<HeightMap *>(ob)->getYSize()));
-          data_ = set(data_, (uint64_t)(static_cast<HeightMap *>(ob)->getXSamples()));
-          data_ = set(data_, (uint64_t)(static_cast<HeightMap *>(ob)->getYSamples()));
+          data_ = set(data_, (uint64_t) (static_cast<HeightMap *>(ob)->getXSamples()));
+          data_ = set(data_, (uint64_t) (static_cast<HeightMap *>(ob)->getYSamples()));
 
           // size of height map
-          data_ = set(data_, (uint64_t)(static_cast<HeightMap *>(ob)->getHeightVector().size()));
+          data_ = set(data_, (uint64_t) (static_cast<HeightMap *>(ob)->getHeightVector().size()));
 
           // height values in float
           for (auto h : static_cast<HeightMap *>(ob)->getHeightVector())
@@ -855,10 +1277,12 @@ class RaisimServer final {
             else
               visOb = &(static_cast<ArticulatedSystem *>(ob)->getVisColOb());
 
-            data_ = set(data_, (uint64_t)(visOb->size()));
+            data_ = set(data_, (uint64_t) (visOb->size()));
 
             for (auto &vob : *visOb) {
               data_ = set(data_, vob.shape);
+              data_ = setString(data_, vob.material);
+              data_ = setN(data_, vob.color.ptr(), 4);
               data_ = set(data_, i);
               if (vob.shape == Shape::Mesh) {
                 data_ = setString(data_, vob.fileName);
@@ -866,7 +1290,7 @@ class RaisimServer final {
                 data_ = set(data_, vob.scale[1]);
                 data_ = set(data_, vob.scale[2]);
               } else {
-                data_ = set(data_, (uint64_t)(vob.visShapeParam.size()));
+                data_ = set(data_, (uint64_t) (vob.visShapeParam.size()));
                 for (auto vparam : vob.visShapeParam)
                   data_ = set(data_, vparam);
               }
@@ -877,12 +1301,10 @@ class RaisimServer final {
     }
 
     // constraints
-    data_ = set(data_, (uint64_t)(world_->getCompliantWire().size() + world_->getStiffWire().size()));
+    data_ = set(data_, (uint64_t) (world_->getWires().size()));
   }
 
   inline void serializeContacts() {
-    // std::lock_guard<std::mutex> guard(serverMutex_);
-
     auto *contactList = world_->getContactProblem();
 
     // set message type
@@ -890,13 +1312,13 @@ class RaisimServer final {
 
     // Data begins
     size_t contactSize = contactList->size();
-    for(const auto& con : *contactList)
+    for (const auto &con : *contactList)
       if (con.rank == 5) contactSize--;
 
     size_t contactIncrement = 0;
     auto contactSizeLocation = data_;
 
-    data_ = set(data_, (uint64_t)(contactSize));
+    data_ = set(data_, (uint64_t) (contactSize));
 
     for (auto *obj : world_->getObjList()) {
       for (auto &contact : obj->getContacts()) {
@@ -915,7 +1337,8 @@ class RaisimServer final {
         auto contactFrame = contact.getContactFrame();
 
         Vec<3> impulseW;
-        raisim::matvecmul(contactFrame, *impulseB, impulseW);
+        raisim::matTransposevecmul(contactFrame, *impulseB, impulseW);
+        impulseW /= world_->getTimeStep();
         data_ = set(data_, impulseW[0]);
         data_ = set(data_, impulseW[1]);
         data_ = set(data_, impulseW[2]);
@@ -1042,7 +1465,7 @@ class RaisimServer final {
             if (!x || !y || !z)
               throw std::runtime_error("ERROR while reading pos");
             _visualObjects[name]->setPosition(std::stod(x), std::stod(y),
-                                             std::stod(z));
+                                              std::stod(z));
           }
 
           // quat
@@ -1056,7 +1479,7 @@ class RaisimServer final {
             if (!w || !x || !y || !z)
               throw std::runtime_error("ERROR while reading quat");
             _visualObjects[name]->setOrientation(std::stod(w), std::stod(x),
-                                                std::stod(y), std::stod(z));
+                                                 std::stod(y), std::stod(z));
           }
         } catch (std::exception &e) {
           // terminate with exception message
@@ -1078,15 +1501,12 @@ class RaisimServer final {
 
   inline void serializeVisuals() {
     // std::lock_guard<std::mutex> guard(serverMutex_);
-
-    // set message type
-    data_ = set(data_, ServerMessageType::VISUAL_INITILIZATION);
-
-    // set configuration number
-    data_ = set(data_, visualConfiguration_);
-
+    // total items
+    data_ = set(data_, (uint64_t) (_visualObjects.size() + _visualArticulatedSystem.size()));
     // Data begins
-    data_ = set(data_, (uint64_t)(_visualObjects.size()));
+    data_ = set(data_, (uint64_t) (_visualObjects.size()));
+    // visualArticulatedSystems
+    data_ = set(data_, (uint64_t) (_visualArticulatedSystem.size()));
 
     for (auto &kAndVo : _visualObjects) {
       auto &vo = kAndVo.second;
@@ -1098,10 +1518,7 @@ class RaisimServer final {
       data_ = setString(data_, vo->name);
 
       // object color
-      data_ = set(data_, (float)vo->color[0]);  // r
-      data_ = set(data_, (float)vo->color[1]);  // g
-      data_ = set(data_, (float)vo->color[2]);  // b
-      data_ = set(data_, (float)vo->color[3]);  // a
+      data_ = setN(data_, vo->color.ptr(), 4);
 
       // object material
       data_ = setString(data_, vo->material);
@@ -1114,27 +1531,49 @@ class RaisimServer final {
 
       switch (vo->type) {
         case Visuals::VisualSphere:
-          data_ = set(data_, (float)vo->size[0]);
+          data_ = set(data_, (float) vo->size[0]);
           break;
 
         case Visuals::VisualBox:
-          for (int i = 0; i < 3; i++) data_ = set(data_, (float)vo->size[i]);
+          for (int i = 0; i < 3; i++) data_ = set(data_, (float) vo->size[i]);
           break;
 
         case Visuals::VisualCylinder:
-          data_ = set(data_, (float)vo->size[0]);
-          data_ = set(data_, (float)vo->size[1]);
+          data_ = set(data_, (float) vo->size[0]);
+          data_ = set(data_, (float) vo->size[1]);
           break;
 
         case Visuals::VisualCapsule:
-          data_ = set(data_, (float)vo->size[0]);
-          data_ = set(data_, (float)vo->size[1]);
+          data_ = set(data_, (float) vo->size[0]);
+          data_ = set(data_, (float) vo->size[1]);
           break;
+      }
+    }
 
-          //        case VisualObject::VisualMesh:
-          //          data_ = setString(data_, static_cast<Mesh
-          //          *>(ob)->getMeshFileName()); data_ = set(data_,
-          //          float(static_cast<Mesh *>(ob)->getScale())); break;
+    for (auto &vas : _visualArticulatedSystem) {
+      auto *ob = vas.second->obj.get();
+      data_ = setString(data_, vas.first);
+      std::string resDir = static_cast<ArticulatedSystem *>(ob)->getResourceDir();
+      data_ = setString(data_, resDir);
+
+      for (uint64_t i = 0; i < 2; i++) {
+        std::vector<VisObject> *visOb = i==0 ? &(ob->getVisOb()) : &(ob->getVisColOb());
+        data_ = set(data_, (uint64_t) (visOb->size()));
+
+        for (auto &vob : *visOb) {
+          data_ = set(data_, vob.shape);
+          data_ = setString(data_, vob.material);
+          data_ = setN(data_, vob.color.ptr(), 4);
+          data_ = set(data_, i);
+          if (vob.shape == Shape::Mesh) {
+            data_ = setString(data_, vob.fileName);
+            data_ = setN(data_, vob.scale.ptr(), 3);
+          } else {
+            data_ = set(data_, (uint64_t) (vob.visShapeParam.size()));
+            for (auto vparam : vob.visShapeParam)
+              data_ = set(data_, vparam);
+          }
+        }
       }
     }
   }
@@ -1153,6 +1592,7 @@ class RaisimServer final {
   std::vector<ServerRequestType> serverRequest_;
   std::string focusedObjectName_;
   std::string videoName_;
+  int objectId_;
 
   bool pauseRequested_ = false;
   bool resumeRequested_ = false;
@@ -1168,7 +1608,10 @@ class RaisimServer final {
 
   std::mutex serverMutex_;
 
-  std::unordered_map<std::string, Visuals*> _visualObjects;
+  std::unordered_map<std::string, Visuals *> _visualObjects;
+  std::unordered_map<std::string, PolyLine *> _polyLines;
+  std::unordered_map<std::string, ArticulatedSystemVisual *> _visualArticulatedSystem;
+
   uint64_t visualConfiguration_ = 0;
   void updateVisualConfig() { visualConfiguration_++; }
 
@@ -1177,6 +1620,8 @@ class RaisimServer final {
 
   Eigen::Vector3d position_, lookAt_;
 
+  // version
+  constexpr static int version_ = 10003;
 };
 
 }  // namespace raisim

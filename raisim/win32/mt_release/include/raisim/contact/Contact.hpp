@@ -8,8 +8,11 @@
 #define RAISIM_CONTACT_HPP
 
 #include <raisim/configure.hpp>
+#include "raisim/helper.hpp"
 
 namespace raisim {
+
+typedef std::vector<std::pair<std::vector <raisim::Mat<3, 3>, AlignedAllocator<raisim::Mat<3, 3>, 32>>, raisim::Vec<3>>, AlignedAllocator<std::pair<std::vector <raisim::Mat<3, 3>, AlignedAllocator<raisim::Mat<3, 3>, 32>>, raisim::Vec<3>>, 32>> DelassusType;
 
 class World;
 
@@ -30,14 +33,16 @@ class Contact {
                    size_t pairContactIndexInPairObject,
                    size_t localBodyIndex,
                    double depth)
-    : position_(position), normal_(normal), objectA_(objectA),
-      pairObjectBodyType_(pairObjectBodyType),
+    : position_(position), normal_(normal),
+      depth_(depth),
       contactIndexInObject_(contactIndexInObject),
-      contactProblemIndex_(contactProblemIndex),
       pairObjectIndex_(pairObjectIndex),
       pairContactIndexInPairObject_(pairContactIndexInPairObject),
+      contactProblemIndex_(contactProblemIndex),
       localBodyIndex_(localBodyIndex),
-      depth_(depth) {
+      objectA_(objectA),
+      pairObjectBodyType_(pairObjectBodyType)
+  {
     computeFrame();
   }
 
@@ -84,6 +89,10 @@ class Contact {
 
   size_t getIndexContactProblem() const {
     return contactProblemIndex_;
+  }
+
+  size_t getIndexInObjectContactList() const {
+    return contactIndexInObject_;
   }
 
   size_t getPairObjectIndex() const {

@@ -3,15 +3,19 @@
 
 #include "raisim/RaisimServer.hpp"
 #include "raisim/World.hpp"
+#if WIN32
+#include <timeapi.h>
+#endif
 
 int main(int argc, char* argv[]) {
   auto binaryPath = raisim::Path::setFromArgv(argv[0]);
   raisim::World::setActivationKey(binaryPath.getDirectory() + "\\rsc\\activation.raisim");
+#if WIN32
+    timeBeginPeriod(1); // for sleep_for function. windows default clock speed is 1/64 second. This sets it to 1ms.
+#endif
 
   /// create raisim world
   raisim::World world;
-  world.setTimeStep(0.003);
-  world.setERP(world.getTimeStep(), world.getTimeStep());
 
   /// create objects
   raisim::TerrainProperties terrainProperties;
@@ -24,7 +28,8 @@ int main(int argc, char* argv[]) {
   terrainProperties.fractalOctaves = 3;
   terrainProperties.fractalLacunarity = 2.0;
   terrainProperties.fractalGain = 0.25;
-  auto hm = world.addHeightMap(0.0, 0.0, terrainProperties);
+  raisim::HeightMap* hm = world.addHeightMap(0.0, 0.0, terrainProperties);
+  hm->setAppearance("blue");
 
   std::vector<raisim::ArticulatedSystem*> anymals;
 
@@ -38,7 +43,7 @@ int main(int argc, char* argv[]) {
   jointPgain.tail(12).setConstant(200.0);
   jointDgain.tail(12).setConstant(10.0);
 
-  const size_t N = 1;
+  const size_t N = 4;
 
   for (size_t i = 0; i < N; i++) {
     for (size_t j = 0; j < N; j++) {
@@ -56,18 +61,41 @@ int main(int argc, char* argv[]) {
     }
   }
 
-  std::default_random_engine generator;
-  std::normal_distribution<double> distribution(0.0, 0.2);
-  std::srand(std::time(nullptr));
-  anymals.back()->printOutBodyNamesInOrder();
-
-  /// launch raisim servear
+  /// launch raisim server
   raisim::RaisimServer server(&world);
   server.launchServer();
 
   while (1) {
-    raisim::MSLEEP(2);
+    server.lockVisualizationServerMutex();
+    for (size_t i = 0; i < N; i++) {
+      for (size_t j = 0; j < N; j++) {
+        anymals.push_back(world.addArticulatedSystem(
+            binaryPath.getDirectory() + "\\rsc\\anymal\\urdf\\anymal.urdf"));
+        anymals.back()->setGeneralizedCoordinate(
+            {double(2 * i), double(j), 2.5, 1.0, 0.0, 0.0, 0.0, 0.03, 0.4, -0.8,
+             -0.03, 0.4, -0.8, 0.03, -0.4, 0.8, -0.03, -0.4, 0.8});
+        anymals.back()->setGeneralizedForce(
+            Eigen::VectorXd::Zero(anymals.back()->getDOF()));
+        anymals.back()->setControlMode(
+            raisim::ControlMode::PD_PLUS_FEEDFORWARD_TORQUE);
+        anymals.back()->setPdGains(jointPgain, jointDgain);
+        anymals.back()->setName("anymal" + std::to_string(j + i * N));
+      }
+    }
+    hm = world.addHeightMap(0.0, 0.0, terrainProperties);
+    server.unlockVisualizationServerMutex();
+
+    raisim::MSLEEP(2000);
     server.integrateWorldThreadSafe();
+
+
+    server.lockVisualizationServerMutex();
+    for(auto any: anymals){
+      world.removeObject(any);
+    }
+    anymals.resize(0);
+    world.removeObject(hm);
+    server.unlockVisualizationServerMutex();
   }
 
   server.killServer();

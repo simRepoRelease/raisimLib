@@ -2,6 +2,12 @@
 Articulated Systems
 #############################
 
+.. image:: ../image/anymals.png
+    :width: 543
+    :height: 423
+
+ANYmal robots (B and C versions) simulated in RaiSim.
+
 TL;DR
 =============================
 
@@ -19,7 +25,7 @@ Kinematic trees do not contain a loop (a body always has only one parent joint).
 Consequently, the number of joints is equal to the number of bodies (for floating systems, we assign a floating joint on the root body).
 RaiSim can only simulate **kinematic trees**.
 
-**Since all bodies have one joints, a body index is always the same as its parent joint's index**. 
+**Since all bodies have one joint, a body index is always the same as its parent joint's index**.
 A *body* refers to a rigid body which is composed of one or more *links*. All links within a body are connected to each other by a fixed joint.
 
 Creating an instance
@@ -148,9 +154,21 @@ The modifications are as follows:
 
 * Capsule geom is available for both collision objects and visual objects (with the keyword "capsule"). The geom is defined by "height" and "radius" keyword. The height represents the distance between the two center points of the spheres.
 
-* A <joint>/<dynamics> tag can have three more attributes: *rotor inertia*, *spring_mount* and *stiffness*. 
+* A <joint>/<dynamics> tag can have three more attributes: *rotor_inertia*, *spring_mount* and *stiffness*.
 
-**Rotor inertia** in Raisim approximately simulates the rotor inertia of the motor (but missing the resulting gyroscopic effect, which is often neglegible). 
+Here is an example joint with the raisim tags
+
+.. code-block:: xml
+
+    <joint name="link1Tolink2" type="spherical">
+        <parent link="link1"/>
+        <child link="link2"/>
+        <origin xyz="0 0 -0.24"/>
+        <axis xyz="0 1 0"/>
+        <dynamics rotor_inertia="0.0001" spring_mount="0.70710678118 0 0.70710678118 0" stiffness="500.0" damping="3."/>
+    </joint>
+
+**Rotor_inertia** in Raisim approximately simulates the rotor inertia of the motor (but missing the resulting gyroscopic effect, which is often neglegible).
 It is added to the diagonal elements of the mass matrix.
 It is common way to include the inertial effect of the rotor.
 You can also override it in C++ using :code:`setRotorInertia()`.
@@ -367,8 +385,8 @@ The elements are ordered by the body indicies (which is the same as the joint in
 
 * **Center of Mass Position**
 
-:code:`getLinkCOM` method returns (a non-const reference to) a :code:`std::vector` of the COM of the links.
-The elements are ordered by the body indicies.
+:code:`getBodyCOM_B` method returns (a non-const reference to) a :code:`std::vector` of the COM of the bodies.
+The elements are ordered by the body indices.
 
 * **Link Inertia**
 

@@ -25,15 +25,19 @@ public:
   RaiSimTinyXmlWrapper(const std::string &filePath, const std::string &childElement) {
     if (filePath.find('<') == std::string::npos) {
       fileName_ = Path(filePath).getPath();      
-      RSFATAL_IF(!doc_.LoadFile(filePath.c_str()), "cannot read file: " << "\'" << filePath<< "\'")      
+      RSFATAL_IF(!doc_.LoadFile(filePath.c_str()), "cannot read the xml file: " << "\'" << filePath<< "\'")
     } else {
-      fileName_ = "\"URDF from a string\"";
-      doc_.Parse(filePath.c_str(), 0, TIXML_ENCODING_UTF8);
+      fileName_ = "URDF from a string";
+      doc_.Parse(filePath.c_str(), nullptr, TIXML_ENCODING_UTF8);
     }
 
     nodeTree_.push_back(childElement);
     node_ = doc_.FirstChildElement(childElement);
     RSFATAL_IF(!node_, filePath << " file does not contain node " << "\'" << childElement << "\'")    
+  }
+
+  void setFileName(const std::string& name) {
+    fileName_ = name;
   }
 
   std::vector<RaiSimTinyXmlWrapper> getChildren(const std::string &child) const {
@@ -85,7 +89,7 @@ public:
                 << "\' at "<< "row:" << std::to_string(node_->Row()) 
                 << " col:" << std::to_string(node_->Column())
                 << ", the node "<<"\'"<< getNodeName()<<"\'"
-                << " does not contain a attribute called " <<"\'"<< attName <<"\'")
+                << " does not contain an attribute called " <<"\'"<< attName <<"\'")
     return attribute;
   }
 
@@ -93,11 +97,11 @@ public:
     RSFATAL("in \'" << getFileName()
             << "\' at "<< "row:" << std::to_string(node_->Row()) 
             << " col:" << std::to_string(node_->Column())
-            << ", the node "<<"\'"<< getNodeName()<<"\'" << msg)
+            << ", the node "<<"\'"<< getNodeName()<<"\': " << msg)
   }
 
   template <typename T>
-  const bool getAttributeIfExists(const std::string &attName, T &attribute) const {
+  bool getAttributeIfExists(const std::string &attName, T &attribute) const {
     auto result = node_->Attribute(attName);
     if (!result)
       return false;

@@ -54,16 +54,20 @@ class Mat : public MatExpr<Mat<n, m>> {
 
   template<class T2>
   inline Mat<n,m>& operator = (const MatExpr<T2>& expr) {
-    for (size_t j = 0; j < cols(); ++j) for (size_t i = 0; i < rows(); ++i) v[i + j * n] = expr(i,j); return *this;
+    for (size_t j = 0; j < cols(); ++j) for (size_t i = 0; i < rows(); ++i) v[i + j * n] = expr(i,j);
+    return *this;
   }
 
   template<class T>
   inline Mat<n,m>& operator = (const T& expr) {
-    for (size_t j = 0; j < cols(); ++j) for (size_t i = 0; i < rows(); ++i) v[i + j * n] = expr(i,j); return *this;
+    for (size_t j = 0; j < cols(); ++j) for (size_t i = 0; i < rows(); ++i) v[i + j * n] = expr(i,j);
+    return *this;
   }
 
   template<typename T2, size_t n2, size_t m2>
-  inline Mat<n,m>& operator = (const Mat<n2, m2>& expr) { for (size_t j = 0; j < size(); ++j) v[j] = expr[j]; return *this;}
+  inline Mat<n,m>& operator = (const Mat<n2, m2>& expr) { for (size_t j = 0; j < size(); ++j) v[j] = expr[j];
+    return *this;
+  }
 
   inline ScalarType *ptr() { return &(v[0]); }
   inline const ScalarType *ptr() const { return &(v[0]); }
@@ -116,7 +120,7 @@ class Mat : public MatExpr<Mat<n, m>> {
     return zero;
   }
 
-  auto transpose() { return Transpose<Mat<n,m>>(*this); }
+  Transpose<Mat<n,m>> transpose() { return Transpose<Mat<n,m>>(*this); }
 
   inline RowRef<Mat<n, m>, m> row(size_t r) { return RowRef<Mat<n,m>, m>(*this, r); }
   inline const RowRef<Mat<n, m>, m> row(size_t r) const { return RowRef<Mat<n,m>, m>(*this, r); }

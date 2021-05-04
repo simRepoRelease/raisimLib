@@ -45,7 +45,7 @@ class CMakeBuild(build_ext):
         if __CMAKE_PREFIX_PATH__ is not None:
             cmake_args.append('-DCMAKE_PREFIX_PATH=' + __CMAKE_PREFIX_PATH__)
 
-        cfg = 'Debug' if __DEBUG__ else 'Release'
+        cfg = 'Debug' if __DEBUG__ else 'RelWithDebInfo'
         build_args = ['--config', cfg]
 
         if platform.system() == "Windows":
@@ -75,7 +75,7 @@ setup(
     description='gym for raisim using torch.',
     long_description='',
     ext_modules=[CMakeExtension('_raisim_gym')],
-    install_requires=['ruamel.yaml', 'numpy', 'torch', 'tensorboard'],
+    install_requires=['ruamel.yaml', 'numpy', 'torch', 'tensorboard>=1.15'],
     cmdclass=dict(build_ext=CMakeBuild),
     include_package_data=True,
     zip_safe=False,

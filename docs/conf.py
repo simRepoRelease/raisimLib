@@ -1,9 +1,9 @@
 import subprocess, os
 
 extensions = [
-    "sphinx_rtd_theme",
     "breathe",
-    'sphinx.ext.autosectionlabel'
+    'sphinx.ext.autosectionlabel',
+    'sphinx_tabs.tabs'
 ]
 
 html_theme = "sphinx_rtd_theme"
@@ -21,3 +21,6 @@ html_show_sourcelink = False
 breathe_default_project = "raisim"
 autosectionlabel_prefix_document = True
 autosectionlabel_maxdepth = 4
+html_theme_path = ["themes"]
+html_show_sphinx = False
+html_logo = "image/logo.png"

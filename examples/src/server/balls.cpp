@@ -3,10 +3,16 @@
 
 #include "raisim/RaisimServer.hpp"
 #include "raisim/World.hpp"
+#if WIN32
+#include <timeapi.h>
+#endif
 
 int main(int argc, char* argv[]) {
   auto binaryPath = raisim::Path::setFromArgv(argv[0]);
   raisim::World::setActivationKey(binaryPath.getDirectory() + "\\rsc\\activation.raisim");
+#if WIN32
+    timeBeginPeriod(1); // for sleep_for function. windows default clock speed is 1/64 second. This sets it to 1ms.
+#endif
 
   /// create raisim world
   double dt = 0.003;
@@ -53,7 +59,7 @@ int main(int argc, char* argv[]) {
   std::srand(std::time(nullptr));
   anymals.back()->printOutBodyNamesInOrder();
 
-  /// launch raisim servear
+  /// launch raisim server
   raisim::RaisimServer server(&world);
   server.launchServer();
 
@@ -69,6 +75,7 @@ int main(int argc, char* argv[]) {
       auto* ball = world.addSphere(0.1, 1.0);
       ball->setPosition(0, -2, 0.8);
       ball->setVelocity(0, 10, 0, 0, 0, 0);
+      ball->setAppearance("red");
       j++;
     }
 

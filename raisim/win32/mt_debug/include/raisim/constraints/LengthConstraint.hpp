@@ -9,12 +9,19 @@
 
 #include <raisim/object/Object.hpp>
 #include "Constraints.hpp"
+#include "raisim/contact/Contact.hpp"
 
 namespace raisim {
 
 class LengthConstraint : public Constraints {
 
  public:
+  enum class WireType : int {
+    STIFF = 0,
+    COMPLIANT,
+    CUSTOM
+  };
+
   enum class StretchType : int {
     STRETCH_RESISTANT_ONLY = 0,
     COMPRESSION_RESISTANT_ONLY,
@@ -22,10 +29,11 @@ class LengthConstraint : public Constraints {
   };
 
   LengthConstraint(Object *obj1, size_t localIdx1, Vec<3> pos1_b, Object *obj2, size_t localIdx2, Vec<3> pos2_b, double length);
+  virtual ~LengthConstraint() = default;
 
   /**
-   * update internal variables (called by integrate1()) */
-  void update();
+   * update internal variables (called by World::integrate1()) */
+  void update(contact::ContactProblems& contact_problems);
 
   /**
    * @return the length of the wire */
@@ -92,6 +100,23 @@ class LengthConstraint : public Constraints {
    * @return the wire stretch type */
   StretchType getStretchType() const { return stretchType_; }
 
+  /**
+   * get wire type
+   * @return wire type */
+  WireType getWireType() const { return type_; }
+
+  /**
+   * get pos on ob1 where the wire is attached
+   * @return mount position 1
+   */
+  const Vec<3>& getOb1MountPos() const;
+
+  /**
+   * get pos on ob2 where the wire is attached
+   * @return mount position 2
+   */
+  const Vec<3>& getOb2MountPos() const;
+
  protected:
   Vec<3> position1_;
   Object* body1_;
@@ -105,8 +130,10 @@ class LengthConstraint : public Constraints {
   double length_;
   double distance_;
   double stretch_;
-  double dampedStretch_;
+  WireType type_;
   StretchType stretchType_ = StretchType::COMPRESSION_RESISTANT_ONLY;
+
+  virtual void applyTension(contact::ContactProblems& contact_problems) = 0;
 
  public:
   bool isActive = false;

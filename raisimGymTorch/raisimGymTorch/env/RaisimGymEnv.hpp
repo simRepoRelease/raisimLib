@@ -13,6 +13,7 @@
 #include "raisim/World.hpp"
 #include "raisim/RaisimServer.hpp"
 #include "Yaml.hpp"
+#include "Reward.hpp"
 
 #define __RSG_MAKE_STR(x) #x
 #define _RSG_MAKE_STR(x) __RSG_MAKE_STR(x)
@@ -61,6 +62,7 @@ class RaisimGymEnv {
   void turnOnVisualization() { server_->wakeup(); }
   void startRecordingVideo(const std::string& videoName ) { server_->startRecordingVideo(videoName); }
   void stopRecordingVideo() { server_->stopRecordingVideo(); }
+  raisim::Reward& getRewards() { return rewards_; }
 
  protected:
   std::unique_ptr<raisim::World> world_;
@@ -70,6 +72,7 @@ class RaisimGymEnv {
   Yaml::Node cfg_;
   int obDim_=0, actionDim_=0;
   std::unique_ptr<raisim::RaisimServer> server_;
+  raisim::Reward rewards_;
 };
 
 }

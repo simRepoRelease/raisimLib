@@ -1,5 +1,8 @@
 # RAISIM, A PHYSICS ENGINE FOR ROBOTICS AND AI RESEARCH
 
+[![IMAGE ALT TEXT HERE](https://img.youtube.com/vi/CN0ah5-OWik/0.jpg)](https://www.youtube.com/watch?v=CN0ah5-OWik)
+
+
 Documentation available at the [RaiSim Tech website](http://raisim.com).
 
 ## License
@@ -11,9 +14,7 @@ Send email to info.raisim@gmail.com for any special inquiry.
 
 ## Supported OS
 
-Currently Linux, Windows.
-
-Support for MAC OS is coming soon.
+MAC (including m1), Linux, Windows.
 
 
 

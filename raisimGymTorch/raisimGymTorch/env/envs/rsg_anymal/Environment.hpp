@@ -6,7 +6,6 @@
 #pragma once
 
 #include <stdlib.h>
-#include <cstdint>
 #include <set>
 #include "../../RaisimGymEnv.hpp"
 
@@ -46,17 +45,16 @@ class ENVIRONMENT : public RaisimGymEnv {
     anymal_->setGeneralizedForce(Eigen::VectorXd::Zero(gvDim_));
 
     /// MUST BE DONE FOR ALL ENVIRONMENTS
-    obDim_ = 34; /// convention described on top
+    obDim_ = 34;
     actionDim_ = nJoints_; actionMean_.setZero(actionDim_); actionStd_.setZero(actionDim_);
     obDouble_.setZero(obDim_);
 
-    /// action & observation scaling
+    /// action scaling
     actionMean_ = gc_init_.tail(nJoints_);
     actionStd_.setConstant(0.3);
 
     /// Reward coefficients
-    READ_YAML(double, forwardVelRewardCoeff_, cfg["forwardVelRewardCoeff"])
-    READ_YAML(double, torqueRewardCoeff_, cfg["torqueRewardCoeff"])
+    rewards_.initializeFromConfigurationFile (cfg["reward"]);
 
     /// indices of links that should not make contact with ground
     footIndices_.insert(anymal_->getBodyIdx("LF_SHANK"));
@@ -96,9 +94,10 @@ class ENVIRONMENT : public RaisimGymEnv {
 
     updateObservation();
 
-    torqueReward_ = torqueRewardCoeff_ * anymal_->getGeneralizedForce().squaredNorm();
-    forwardVelReward_ = forwardVelRewardCoeff_ * std::min(4.0, bodyLinearVel_[0]);
-    return torqueReward_ + forwardVelReward_;
+    rewards_.record("torque", anymal_->getGeneralizedForce().squaredNorm());
+    rewards_.record("forwardVel", std::min(4.0, bodyLinearVel_[0]));
+
+    return rewards_.sum();
   }
 
   void updateObservation() {
@@ -140,8 +139,6 @@ class ENVIRONMENT : public RaisimGymEnv {
   raisim::ArticulatedSystem* anymal_;
   Eigen::VectorXd gc_init_, gv_init_, gc_, gv_, pTarget_, pTarget12_, vTarget_;
   double terminalRewardCoeff_ = -10.;
-  double forwardVelRewardCoeff_ = 0., forwardVelReward_ = 0.;
-  double torqueRewardCoeff_ = 0., torqueReward_ = 0.;
   Eigen::VectorXd actionMean_, actionStd_, obDouble_;
   Eigen::Vector3d bodyLinearVel_, bodyAngularVel_;
   std::set<size_t> footIndices_;

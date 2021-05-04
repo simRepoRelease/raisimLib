@@ -59,6 +59,12 @@ struct CollisionDefinition {
   const dGeomID getCollisionObject() const { return colObj; }
   dGeomID getCollisionObject() { return colObj; }
 
+  // check https://raisim.com/sections/Contact.html to know more about collision group and mask
+  void setCollisionGroup(CollisionGroup group);
+  void setCollisionMask(CollisionGroup mask);
+  CollisionGroup getCollisionGroup() const;
+  CollisionGroup getCollisionMask() const;
+
   raisim::Mat<3, 3> rotOffset;
   raisim::Vec<3> posOffset;
   std::string name;
@@ -158,8 +164,8 @@ struct VisObject {
 class Joint {
  public:
 
-  enum Type {
-    FIXED,
+  enum Type : int {
+    FIXED = 0,
     REVOLUTE,
     PRISMATIC,
     SPHERICAL,

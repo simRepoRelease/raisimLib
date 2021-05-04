@@ -3,14 +3,21 @@
 
 #include "raisim/RaisimServer.hpp"
 #include "raisim/World.hpp"
+#if WIN32
+#include <timeapi.h>
+#endif
 
 int main(int argc, char* argv[]) {
   auto binaryPath = raisim::Path::setFromArgv(argv[0]);
   raisim::World::setActivationKey(binaryPath.getDirectory() + "\\rsc\\activation.raisim");
+#if WIN32
+    timeBeginPeriod(1); // for sleep_for function. windows default clock speed is 1/64 second. This sets it to 1ms.
+#endif
 
   /// create raisim world
   raisim::World world;
-  world.setTimeStep(0.002);
+  world.setTimeStep(0.001);
+  world.setERP(0,0);
 
   /// create objects
   auto ground = world.addGround();
@@ -28,20 +35,19 @@ int main(int argc, char* argv[]) {
            0.0,           0.0,       0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
            0.0,           0.0,       0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
            0.0,           0.0,       0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0});
-      atlas.back()->setGeneralizedForce(
-          Eigen::VectorXd::Zero(atlas.back()->getDOF()));
+      atlas.back()->setGeneralizedForce(Eigen::VectorXd::Zero(atlas.back()->getDOF()));
       atlas.back()->setName("atlas" + std::to_string(j + i * N));
     }
   }
 
-  /// launch raisim servear
+  /// launch raisim server
   raisim::RaisimServer server(&world);
   server.launchServer();
-  auto box = server.addVisualBox("box", 0.5, 0.5, 0.5, 1, 0, 0, 1);
-  box->setPosition(1,1,1);
 
   while (1) {
-    raisim::MSLEEP(2);
+    std::this_thread::sleep_for(std::chrono::microseconds(500));
+    atlas[0]->setExternalForce(0, {300,-300,30});
+    atlas[0]->setExternalTorque(0, {0,40,0});
     server.integrateWorldThreadSafe();
   }
 
